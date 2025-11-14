@@ -1,0 +1,85 @@
+{
+  "name": "Error Example Trace",
+  "description": "A trace showing how errors are handled in agent execution",
+  "steps": [
+    {
+      "type": "thought",
+      "content": "I need to fetch user data from the API. Let me make a request to get the user profile information.",
+      "timestamp": "2024-01-15T11:00:00Z",
+      "duration_ms": 120,
+      "tokens_used": 20
+    },
+    {
+      "type": "action",
+      "content": "Making API call to fetch user profile",
+      "timestamp": "2024-01-15T11:00:01Z",
+      "duration_ms": 2000,
+      "inputs": {
+        "user_id": "12345",
+        "endpoint": "https://api.example.com/users/12345",
+        "api_key": "***"
+      },
+      "error": "API request failed: 404 Not Found - User does not exist",
+      "metadata": {
+        "api_call": true,
+        "status_code": 404,
+        "response_time_ms": 2000
+      }
+    },
+    {
+      "type": "observation",
+      "content": "The API call failed with a 404 error. The user ID provided does not exist in the system.",
+      "timestamp": "2024-01-15T11:00:03Z",
+      "duration_ms": 80,
+      "metadata": {
+        "error_handled": true
+      }
+    },
+    {
+      "type": "thought",
+      "content": "The user doesn't exist. I should inform the user about this error and suggest they check their user ID or create a new account.",
+      "timestamp": "2024-01-15T11:00:04Z",
+      "duration_ms": 180,
+      "tokens_used": 35
+    },
+    {
+      "type": "action",
+      "content": "Preparing error response for user",
+      "timestamp": "2024-01-15T11:00:05Z",
+      "duration_ms": 90,
+      "inputs": {
+        "error_type": "user_not_found",
+        "user_id": "12345"
+      },
+      "outputs": {
+        "error_message": "Sorry, the user ID '12345' was not found. Please check your user ID or contact support if you believe this is an error.",
+        "suggestions": [
+          "Verify the user ID is correct",
+          "Check if the user account exists",
+          "Contact support for assistance"
+        ]
+      },
+      "metadata": {
+        "error_response": true
+      }
+    },
+    {
+      "type": "observation",
+      "content": "Error response has been prepared and is ready to be sent to the user.",
+      "timestamp": "2024-01-15T11:00:06Z",
+      "duration_ms": 40
+    }
+  ],
+  "metadata": {
+    "agent_version": "1.0.0",
+    "framework": "custom",
+    "total_steps": 6,
+    "execution_mode": "sequential",
+    "error_handling": "graceful"
+  },
+  "total_duration_ms": 2510,
+  "total_tokens": 55,
+  "error_count": 1
+}
+
+

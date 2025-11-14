@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import Stack Sans Headline from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800;900&display=swap');
+
+@font-face {
+  font-family: 'Parkinsans';
+  src: url('/fonts/Parkinsans-Variable.ttf') format('truetype-variations');
+  font-weight: 300 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('/fonts/BricolageGrotesque-Variable.ttf') format('truetype-variations');
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+/* Stack Sans Headline - Using Inter as base, will be replaced with actual Stack Sans Headline */
+.stack-sans-headline {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.stack-sans-headline-light {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 200;
+  font-style: normal;
+}
+
+.stack-sans-headline-bold {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 700;
+  font-style: normal;
+}
+
+/* Bricolage Grotesque CSS Classes */
+.bricolage-grotesque-hero {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-style: normal;
+  font-variation-settings: "wdth" 100;
+}
+
+.bricolage-grotesque-subtitle {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+  font-variation-settings: "wdth" 100;
+}
+
+.bricolage-grotesque-light {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 300;
+  font-style: normal;
+  font-variation-settings: "wdth" 100;
+}
+
+/* Parkinsans CSS Class */
+.parkinsans-hero {
+  font-family: "Parkinsans", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-style: normal;
+}
+
+.parkinsans-subtitle {
+  font-family: "Parkinsans", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white border border-gray-200 rounded-2xl shadow-sm;
+  }
+  .card-hover {
+    @apply transition-transform hover:-translate-y-0.5 hover:shadow-lg;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg text-white bg-primary-600 hover:bg-primary-700 transition-colors;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg text-white bg-gray-900 hover:bg-gray-800 transition-colors;
+  }
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Cursor gradient effect */
+.cursor-gradient {
+  position: fixed;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: opacity 0.3s ease;
+  z-index: 9999;
+  mix-blend-mode: screen;
+  filter: blur(40px);
+}

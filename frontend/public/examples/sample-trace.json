@@ -1,0 +1,91 @@
+{
+  "name": "Example Agent Trace",
+  "description": "A sample trace showing typical agent execution flow",
+  "steps": [
+    {
+      "type": "thought",
+      "content": "I need to analyze the user's request about weather information. The user is asking for current weather conditions in New York.",
+      "timestamp": "2024-01-15T10:00:00Z",
+      "duration_ms": 150,
+      "tokens_used": 25,
+      "metadata": {
+        "model": "gpt-4",
+        "temperature": 0.7
+      }
+    },
+    {
+      "type": "action",
+      "content": "Calling weather API to get current conditions",
+      "timestamp": "2024-01-15T10:00:01Z",
+      "duration_ms": 1200,
+      "inputs": {
+        "location": "New York, NY",
+        "api_key": "***",
+        "endpoint": "https://api.weather.com/v1/current"
+      },
+      "outputs": {
+        "temperature": 72,
+        "condition": "Partly Cloudy",
+        "humidity": 65,
+        "wind_speed": 8
+      },
+      "metadata": {
+        "api_call": true,
+        "response_time_ms": 1200
+      }
+    },
+    {
+      "type": "observation",
+      "content": "Successfully retrieved weather data for New York. Temperature is 72°F with partly cloudy conditions.",
+      "timestamp": "2024-01-15T10:00:02Z",
+      "duration_ms": 50,
+      "metadata": {
+        "success": true
+      }
+    },
+    {
+      "type": "thought",
+      "content": "Now I need to format this weather information in a user-friendly way and provide additional context about the conditions.",
+      "timestamp": "2024-01-15T10:00:03Z",
+      "duration_ms": 200,
+      "tokens_used": 30
+    },
+    {
+      "type": "action",
+      "content": "Formatting weather response for user",
+      "timestamp": "2024-01-15T10:00:04Z",
+      "duration_ms": 100,
+      "inputs": {
+        "weather_data": {
+          "temperature": 72,
+          "condition": "Partly Cloudy",
+          "humidity": 65,
+          "wind_speed": 8
+        }
+      },
+      "outputs": {
+        "formatted_response": "Current weather in New York: 72°F, Partly Cloudy. Humidity: 65%, Wind: 8 mph. Perfect weather for outdoor activities!"
+      },
+      "metadata": {
+        "formatting": true
+      }
+    },
+    {
+      "type": "observation",
+      "content": "Weather information has been successfully formatted and is ready to present to the user.",
+      "timestamp": "2024-01-15T10:00:05Z",
+      "duration_ms": 30
+    }
+  ],
+  "metadata": {
+    "agent_version": "1.0.0",
+    "framework": "langchain",
+    "total_steps": 6,
+    "execution_mode": "sequential"
+  },
+  "total_duration_ms": 1730,
+  "total_tokens": 55,
+  "error_count": 0
+}
+
+

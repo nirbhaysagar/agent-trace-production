@@ -19,10 +19,16 @@ const SubscriptionSettingsPage: NextPage = () => {
   useEffect(() => {
     // Check for success parameter from Stripe redirect
     if (router.query.success === 'true') {
-      toast.success('Subscription activated successfully!')
-      void refresh()
-      // Clean URL
-      router.replace('/settings/subscription', undefined, { shallow: true })
+      toast.success('Subscription activated successfully! Refreshing your account...')
+      // Wait a moment for webhook to process, then refresh
+      const refreshSubscription = async () => {
+        // Wait 2 seconds for webhook to process
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        await refresh()
+        // Clean URL
+        router.replace('/settings/subscription', undefined, { shallow: true })
+      }
+      void refreshSubscription()
     }
   }, [router.query, refresh, router])
 

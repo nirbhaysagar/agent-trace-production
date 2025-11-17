@@ -1,10 +1,13 @@
 import { useState } from 'react'
-import { Upload, FileText } from 'lucide-react'
+import { Upload, FileText, Lock } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useRouter } from 'next/router'
 import { AgentTrace, TraceUploadRequest, TraceResponse } from '../types/trace'
 import api from '../utils/api'
 import { useAuth } from '../context/AuthContext'
+import { useSubscription } from '../context/SubscriptionContext'
 import { saveGuestTrace } from '../utils/guestSession'
+import PaywallModal from './PaywallModal'
 
 interface TraceUploaderProps {
   onTraceUploaded: (trace: AgentTrace) => void
@@ -13,11 +16,14 @@ interface TraceUploaderProps {
 
 const TraceUploader: React.FC<TraceUploaderProps> = ({ onTraceUploaded, disabled = false }) => {
   const { user } = useAuth()
+  const { canUsePrivateTraces } = useSubscription()
+  const router = useRouter()
   const [isUploading, setIsUploading] = useState(false)
   const [jsonInput, setJsonInput] = useState('')
   const [traceName, setTraceName] = useState('')
   const [traceDescription, setTraceDescription] = useState('')
   const [isPublic, setIsPublic] = useState(false)
+  const [showPaywall, setShowPaywall] = useState(false)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -64,7 +70,11 @@ const TraceUploader: React.FC<TraceUploaderProps> = ({ onTraceUploaded, disabled
       console.error('Upload error:', error)
       
       // Provide more specific error messages
-      if (error.response?.status === 503) {
+      if (error.response?.status === 403 && error.response?.data?.detail?.includes('Private traces')) {
+        // Private trace paywall
+        toast.error('Private traces require a Pro subscription')
+        setShowPaywall(true)
+      } else if (error.response?.status === 503) {
         toast.error('Backend service unavailable. Please ensure the backend server is running.')
       } else if (error.response?.status === 400) {
         toast.error('Invalid file format. Please check that your file is valid JSON.')
@@ -131,6 +141,10 @@ const TraceUploader: React.FC<TraceUploaderProps> = ({ onTraceUploaded, disabled
       console.error('Upload error:', error)
       if (error instanceof SyntaxError) {
         toast.error('Invalid JSON format. Please check your input.')
+      } else if (error.response?.status === 403 && error.response?.data?.detail?.includes('Private traces')) {
+        // Private trace paywall
+        toast.error('Private traces require a Pro subscription')
+        setShowPaywall(true)
       } else if (error.response?.status === 503) {
         toast.error('Backend service unavailable. Please ensure the backend server is running.')
       } else if (error.response?.status === 400) {
@@ -238,16 +252,48 @@ const TraceUploader: React.FC<TraceUploaderProps> = ({ onTraceUploaded, disabled
 
           {user && (
             <div>
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isPublic}
-                  onChange={(e) => setIsPublic(e.target.checked)}
-                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                />
-                <span className="text-sm text-gray-700">Make this trace publicly viewable</span>
-              </label>
-              <p className="mt-1 text-xs text-gray-500 ml-6">Public traces can be viewed by anyone with the link, even without signing in</p>
+              {canUsePrivateTraces() ? (
+                <>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isPublic}
+                      onChange={(e) => setIsPublic(e.target.checked)}
+                      className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-gray-700">Make this trace publicly viewable</span>
+                  </label>
+                  <p className="mt-1 text-xs text-gray-500 ml-6">
+                    {isPublic 
+                      ? "Public traces can be viewed by anyone with the link, even without signing in"
+                      : "Private traces are stored securely and only accessible to you (Pro feature)"}
+                  </p>
+                </>
+              ) : (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+                  <div className="flex items-start space-x-3">
+                    <Lock className="w-5 h-5 text-amber-600 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-amber-900 mb-1">
+                        Private Traces are a Pro Feature
+                      </p>
+                      <p className="text-xs text-amber-700 mb-3">
+                        Free users can only create public traces. Upgrade to Pro for private trace storage with 90-day retention.
+                      </p>
+                      <button
+                        onClick={() => setShowPaywall(true)}
+                        className="inline-flex items-center space-x-2 px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all"
+                      >
+                        <Lock className="w-3 h-3" />
+                        <span>Upgrade to Pro</span>
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs text-amber-600">
+                    This trace will be created as <strong>public</strong> (viewable by anyone with the link).
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -298,6 +344,12 @@ const TraceUploader: React.FC<TraceUploaderProps> = ({ onTraceUploaded, disabled
           </pre>
         </div>
       </div>
+      <PaywallModal
+        isOpen={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        feature="Private Trace Storage"
+        description="Store traces privately with 90-day retention. Only accessible to you."
+      />
     </div>
   )
 }

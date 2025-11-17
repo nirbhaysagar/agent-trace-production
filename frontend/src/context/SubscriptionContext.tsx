@@ -3,7 +3,7 @@ import { useAuth } from './AuthContext'
 import api from '../utils/api'
 
 export interface Subscription {
-  plan_type: 'free' | 'pro'
+  plan_type: 'free' | 'pro' | 'mini' | 'pro_test' | 'team'
   status: 'active' | 'canceled' | 'past_due' | 'trialing'
   current_period_end?: string
   cancel_at_period_end: boolean
@@ -12,6 +12,7 @@ export interface Subscription {
 export interface UsageStats {
   trace_count: number
   trace_limit: number
+  ai_credits: number
   reset_date?: string
 }
 
@@ -21,8 +22,10 @@ interface SubscriptionContextValue {
   loading: boolean
   refresh: () => Promise<void>
   canUseAI: () => boolean
+  canUsePrivateTraces: () => boolean
   canCreateTrace: () => boolean
   getTraceLimit: () => number
+  getAICredits: () => number
 }
 
 const SubscriptionContext = createContext<SubscriptionContextValue | undefined>(undefined)
@@ -67,6 +70,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setUsage({
         trace_count: 0,
         trace_limit: 10,
+        ai_credits: 10,
       })
     } finally {
       setLoading(false)
@@ -77,7 +81,15 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     void fetchSubscription()
   }, [user])
 
-  const canUseAI = () => subscription?.plan_type === 'pro'
+  const canUseAI = () => subscription?.plan_type === 'pro' || subscription?.plan_type === 'mini' || subscription?.plan_type === 'pro_test'
+
+  const canUsePrivateTraces = () => {
+    // Private traces are a Pro feature (pro, mini, pro_test, team)
+    return subscription?.plan_type === 'pro' || 
+           subscription?.plan_type === 'mini' || 
+           subscription?.plan_type === 'pro_test' || 
+           subscription?.plan_type === 'team'
+  }
 
   const canCreateTrace = () => {
     if (!subscription || !usage) return true // Default to true if data not loaded
@@ -89,7 +101,12 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const getTraceLimit = () => {
     if (!subscription || !usage) return 10 // Default
     if (subscription.plan_type === 'free') return usage.trace_limit
-    return -1 // Unlimited
+    return -1 // Unlimited (for 'pro' and 'mini')
+  }
+
+  const getAICredits = () => {
+    if (!usage) return 10 // Default
+    return usage.ai_credits || 10
   }
 
   const value = useMemo<SubscriptionContextValue>(
@@ -99,8 +116,10 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       loading,
       refresh: fetchSubscription,
       canUseAI,
+      canUsePrivateTraces,
       canCreateTrace,
       getTraceLimit,
+      getAICredits,
     }),
     [subscription, usage, loading]
   )

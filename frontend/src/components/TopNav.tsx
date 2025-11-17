@@ -98,7 +98,7 @@ const TopNav: React.FC = () => {
             {loading ? (
               <div className="text-sm text-gray-500">Loading…</div>
             ) : user ? (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3">
                 {user.user_metadata?.avatar_url ? (
                   <img src={user.user_metadata.avatar_url} alt="avatar" className="h-8 w-8 rounded-full" />
                 ) : (
@@ -107,8 +107,10 @@ const TopNav: React.FC = () => {
                   </div>
                 )}
                 <div className="hidden flex-col text-xs sm:flex">
-                  <span className="font-medium text-gray-800">{user.user_metadata?.full_name || user.email}</span>
-                  <span className="text-gray-500">Signed in</span>
+                  <span className="font-medium text-gray-800">{user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'}</span>
+                  <span className="text-gray-500 text-[10px] font-mono" title={user.id}>
+                    ID: {user.id.substring(0, 8)}...
+                  </span>
                 </div>
                 <button onClick={() => void signOut()} className="btn-secondary">
                   <LogOut className="mr-2 h-4 w-4" /> Sign out

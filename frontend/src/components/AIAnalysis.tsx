@@ -14,13 +14,14 @@ interface AIAnalysisProps {
 
 const AIAnalysisComponent: React.FC<AIAnalysisProps> = ({ step, trace }) => {
   const { user } = useAuth()
-  const { canUseAI } = useSubscription()
+  const { canUseAI, getAICredits, refresh } = useSubscription()
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['summary']))
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [showPaywall, setShowPaywall] = useState(false)
+  const aiCredits = getAICredits()
 
   // Show AI features for guests but gate them
   if (!user) {
@@ -155,9 +156,18 @@ const AIAnalysisComponent: React.FC<AIAnalysisProps> = ({ step, trace }) => {
       // Request new analysis
       const newAnalysis = await requestAIAnalysis(trace.id, step.id, forceRefresh)
       setAnalysis(newAnalysis)
+      // Refresh credits after successful analysis (if not cached)
+      if (!newAnalysis.cached) {
+        // Refresh subscription context to update credits
+        await refresh()
+      }
     } catch (err: any) {
       console.error('Error fetching AI analysis:', err)
-      if (err.response?.status === 503) {
+      if (err.response?.status === 402) {
+        // Payment Required - out of credits
+        setError('You are out of AI credits. Please upgrade or buy a credit pack to continue.')
+        setShowPaywall(true)
+      } else if (err.response?.status === 503) {
         setError('AI features are currently disabled')
       } else if (err.response?.status === 401) {
         setError('Authentication required')
@@ -188,12 +198,20 @@ const AIAnalysisComponent: React.FC<AIAnalysisProps> = ({ step, trace }) => {
               <h3 className="text-lg font-semibold text-gray-900" style={{ fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 700 }}>
                 AI Error Analysis
               </h3>
+              <div className="flex items-center space-x-3 mt-0.5">
               {analysis?.model_used && (
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-xs text-gray-500">
                   Powered by {analysis.model_used}
                   {analysis.cached && <span className="ml-2 text-green-600">• Cached</span>}
                 </p>
               )}
+              <div className="flex items-center space-x-1 text-xs">
+                <Sparkles className="w-3 h-3 text-purple-500" />
+                <span className="text-gray-600">
+                  {aiCredits} {aiCredits === 1 ? 'credit' : 'credits'} remaining
+                </span>
+              </div>
+              </div>
             </div>
           </div>
           <button
@@ -218,9 +236,18 @@ const AIAnalysisComponent: React.FC<AIAnalysisProps> = ({ step, trace }) => {
         {error && (
           <div className="flex items-center space-x-3 p-3 bg-red-50 border border-red-200 rounded-lg">
             <AlertCircle className="w-5 h-5 text-red-500" />
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-medium text-red-900">Error</p>
               <p className="text-xs text-red-700 mt-0.5">{error}</p>
+              {error.includes('out of AI credits') && (
+                <button
+                  onClick={() => setShowPaywall(true)}
+                  className="mt-2 inline-flex items-center space-x-2 px-3 py-1.5 text-xs bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Upgrade or Buy Credits</span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -355,6 +382,12 @@ const AIAnalysisComponent: React.FC<AIAnalysisProps> = ({ step, trace }) => {
           </div>
         )}
       </div>
+      <PaywallModal
+        isOpen={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        feature="AI-Powered Error Analysis"
+        description="Get instant insights into your agent errors with AI-powered analysis. Upgrade to Pro or buy credits to continue."
+      />
     </div>
   )
 }

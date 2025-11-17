@@ -23,6 +23,7 @@ from security import (
 from ai_service import get_ai_service
 from subscription_service import get_subscription_service
 from stripe_service import get_stripe_service
+from dodo_service import get_dodo_service
 
 # Load environment variables
 load_dotenv()
@@ -194,6 +195,7 @@ class SubscriptionResponse(BaseModel):
 class UsageStatsResponse(BaseModel):
     trace_count: int
     trace_limit: int
+    ai_credits: int
     reset_date: Optional[str] = None
 
 class CheckoutRequest(BaseModel):
@@ -503,6 +505,22 @@ async def upload_trace(request: TraceUploadRequest, req: Request, current_user: 
         # Parse the trace
         trace = parse_agent_log(sanitized_data)
         trace.user_id = current_user.id
+        
+        # Check if user can use private traces (Pro feature)
+        is_private = not bool(request.is_public)
+        if supabase:
+            try:
+                subscription_service = get_subscription_service(supabase)
+                if is_private and not subscription_service.can_use_private_traces(current_user.id):
+                    raise HTTPException(
+                        status_code=403, 
+                        detail="Private traces are a Pro feature. Upgrade to Pro to create private traces with 90-day retention."
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Failed to check private trace access (continuing anyway): {e}")
+        
         trace.is_public = bool(request.is_public)
         trace.metadata = trace.metadata or {}
         trace.metadata.update({"owner": current_user.email})
@@ -512,6 +530,20 @@ async def upload_trace(request: TraceUploadRequest, req: Request, current_user: 
             trace.name = request.name
         if request.description:
             trace.description = request.description
+        
+        # Check if user has API access (Pro feature)
+        if supabase:
+            try:
+                subscription_service = get_subscription_service(supabase)
+                if not subscription_service.check_feature_access(current_user.id, "api_access"):
+                    raise HTTPException(
+                        status_code=403,
+                        detail="API access is a Pro feature. Upgrade to Pro to use authenticated API endpoints."
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Failed to check API access (continuing anyway): {e}")
         
         # Check if user can create trace (only if Supabase is configured)
         if supabase:
@@ -632,7 +664,21 @@ async def upload_trace_file_guest(file: UploadFile = File(...), req: Request = N
 
 @app.post("/api/traces/upload-file")
 async def upload_trace_file(file: UploadFile = File(...), req: Request = None, current_user: AuthenticatedUser = Depends(get_current_user)):
-    """Upload trace from a JSON file with security validation"""
+    """Upload trace from a JSON file with security validation (Pro feature)"""
+    # Check if user has API access (Pro feature)
+    if supabase:
+        try:
+            subscription_service = get_subscription_service(supabase)
+            if not subscription_service.check_feature_access(current_user.id, "api_access"):
+                raise HTTPException(
+                    status_code=403,
+                    detail="API access is a Pro feature. Upgrade to Pro to use authenticated API endpoints."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to check API access (continuing anyway): {e}")
+    
     try:
         # Security: Rate limiting
         if req:
@@ -824,7 +870,21 @@ async def list_traces(limit: int = 50, offset: int = 0, current_user: Optional[A
 
 @app.get("/api/search")
 async def search_traces(q: str, current_user: AuthenticatedUser = Depends(get_current_user)):
-    """Search traces and steps by content and errors"""
+    """Search traces and steps by content and errors (Pro feature)"""
+    # Check if user has API access (Pro feature)
+    if supabase:
+        try:
+            subscription_service = get_subscription_service(supabase)
+            if not subscription_service.check_feature_access(current_user.id, "api_access"):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Global search is a Pro feature. Upgrade to Pro to search across all your traces."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to check API access (continuing anyway): {e}")
+    
     if not q or len(q.strip()) < 2:
         return {"results": []}
     
@@ -899,7 +959,21 @@ async def search_traces(q: str, current_user: AuthenticatedUser = Depends(get_cu
 
 @app.get("/api/filters")
 async def list_filters(current_user: AuthenticatedUser = Depends(get_current_user)):
-    """List all saved filters for the current user"""
+    """List all saved filters for the current user (Pro feature)"""
+    # Check if user has API access (Pro feature)
+    if supabase:
+        try:
+            subscription_service = get_subscription_service(supabase)
+            if not subscription_service.check_feature_access(current_user.id, "api_access"):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Saved filter presets are a Pro feature. Upgrade to Pro to save filter configurations."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to check API access (continuing anyway): {e}")
+    
     try:
         if supabase:
             result = supabase.table("saved_filters").select("*").eq("user_id", current_user.id).order("created_at", desc=True).execute()
@@ -921,7 +995,21 @@ async def list_filters(current_user: AuthenticatedUser = Depends(get_current_use
 
 @app.post("/api/filters", response_model=SavedFilterResponse)
 async def create_filter(request: SavedFilterRequest, current_user: AuthenticatedUser = Depends(get_current_user)):
-    """Save a new filter preset"""
+    """Save a new filter preset (Pro feature)"""
+    # Check if user has API access (Pro feature)
+    if supabase:
+        try:
+            subscription_service = get_subscription_service(supabase)
+            if not subscription_service.check_feature_access(current_user.id, "api_access"):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Saved filter presets are a Pro feature. Upgrade to Pro to save filter configurations."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to check API access (continuing anyway): {e}")
+    
     try:
         if not request.name or not request.name.strip():
             raise HTTPException(status_code=400, detail="Filter name is required")
@@ -960,7 +1048,21 @@ async def create_filter(request: SavedFilterRequest, current_user: Authenticated
 
 @app.delete("/api/filters/{filter_id}")
 async def delete_filter(filter_id: str, current_user: AuthenticatedUser = Depends(get_current_user)):
-    """Delete a saved filter"""
+    """Delete a saved filter (Pro feature)"""
+    # Check if user has API access (Pro feature)
+    if supabase:
+        try:
+            subscription_service = get_subscription_service(supabase)
+            if not subscription_service.check_feature_access(current_user.id, "api_access"):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Saved filter presets are a Pro feature. Upgrade to Pro to manage filter configurations."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to check API access (continuing anyway): {e}")
+    
     try:
         if supabase:
             # Verify ownership before deleting
@@ -987,6 +1089,22 @@ async def update_trace_visibility(trace_id: str, request: VisibilityUpdateReques
     """Update trace public/private visibility"""
     try:
         is_public = request.is_public
+        is_private = not is_public
+        
+        # Check if user can use private traces (Pro feature)
+        if supabase and is_private:
+            try:
+                subscription_service = get_subscription_service(supabase)
+                if not subscription_service.can_use_private_traces(current_user.id):
+                    raise HTTPException(
+                        status_code=403, 
+                        detail="Private traces are a Pro feature. Upgrade to Pro to make traces private with 90-day retention."
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Failed to check private trace access (continuing anyway): {e}")
+        
         if supabase:
             # Verify ownership
             check_result = supabase.table("traces").select("user_id").eq("id", trace_id).execute()
@@ -1079,14 +1197,38 @@ async def request_ai_analysis(
             "previous_steps": previous_steps,
         }
         
-        # Request analysis
+        # Check cache first to see if we need to use credits
         force_refresh = request.force_refresh if request else False
+        cache_key = ai_service._generate_cache_key(error_message, step_context, trace_context)
+        cached_response = None
+        if not force_refresh:
+            cached_response = ai_service._get_cached_analysis(cache_key)
+        
+        # Only check/decrement credits if we need to make a new API call
+        if not cached_response:
+            # Check credits before making API call
+            current_credits = subscription_service.get_ai_credits(current_user.id)
+            if current_credits <= 0:
+                raise HTTPException(
+                    status_code=402,  # 402 Payment Required
+                    detail="You are out of AI credits. Please upgrade or buy a credit pack to continue."
+                )
+        
+        # Request analysis
         analysis = ai_service.analyze_error(
             error_message=error_message,
             step_context=step_context,
             trace_context=trace_context,
             force_refresh=force_refresh
         )
+        
+        # Only decrement credits if this was NOT a cached response
+        if not analysis.get("cached", False):
+            # Decrement credits after successful analysis
+            success = subscription_service.decrement_ai_credits(current_user.id, 1)
+            if not success:
+                # This shouldn't happen since we checked above, but handle it gracefully
+                logger.warning(f"Failed to decrement credits for user {current_user.id} after analysis")
         
         return AIAnalysisResponse(**analysis)
         
@@ -1220,6 +1362,20 @@ async def quick_error_analysis(
             "previous_steps": [],
         }
         
+        # Check cache first to see if we need to use credits
+        cache_key = ai_service._generate_cache_key(request.error_message.strip(), step_context, trace_context)
+        cached_response = ai_service._get_cached_analysis(cache_key)
+        
+        # Only check/decrement credits if we need to make a new API call
+        if not cached_response:
+            # Check credits before making API call
+            current_credits = subscription_service.get_ai_credits(current_user.id)
+            if current_credits <= 0:
+                raise HTTPException(
+                    status_code=402,  # 402 Payment Required
+                    detail="You are out of AI credits. Please upgrade or buy a credit pack to continue."
+                )
+        
         # Request analysis
         analysis = ai_service.analyze_error(
             error_message=request.error_message.strip(),
@@ -1227,6 +1383,14 @@ async def quick_error_analysis(
             trace_context=trace_context,
             force_refresh=False
         )
+        
+        # Only decrement credits if this was NOT a cached response
+        if not analysis.get("cached", False):
+            # Decrement credits after successful analysis
+            success = subscription_service.decrement_ai_credits(current_user.id, 1)
+            if not success:
+                # This shouldn't happen since we checked above, but handle it gracefully
+                logger.warning(f"Failed to decrement credits for user {current_user.id} after analysis")
         
         return AIAnalysisResponse(**analysis)
         
@@ -1266,6 +1430,7 @@ async def get_usage_stats(current_user: AuthenticatedUser = Depends(get_current_
         return UsageStatsResponse(
             trace_count=usage.get("trace_count", 0),
             trace_limit=usage.get("trace_limit", 10),
+            ai_credits=usage.get("ai_credits", 10),
             reset_date=usage.get("reset_date"),
         )
     except Exception as e:
@@ -1342,6 +1507,83 @@ async def stripe_webhook(request: Request):
         raise
     except Exception as e:
         logger.error(f"Error handling webhook: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to handle webhook: {str(e)}")
+
+@app.post("/api/subscription/checkout-dodo")
+async def create_dodo_checkout_session(
+    request: CheckoutRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user)
+):
+    """Create Dodo Payments checkout session"""
+    try:
+        logger.info(f"Creating Dodo checkout for user {current_user.id}, plan: {request.plan_type}, interval: {request.billing_interval}")
+        
+        # Allow pro_test for testing
+        if request.plan_type not in ["pro", "team", "mini", "pro_test"]:
+            raise HTTPException(status_code=400, detail=f"Invalid plan type: {request.plan_type}")
+        
+        billing_interval = request.billing_interval or "month"
+        if billing_interval not in ["month", "year", "lifetime", "week", "test"]:
+            raise HTTPException(status_code=400, detail="Invalid billing interval")
+        
+        logger.info(f"Getting Dodo service...")
+        dodo_service = get_dodo_service(supabase)
+        if not dodo_service:
+            logger.error("Failed to get Dodo service")
+            raise HTTPException(status_code=500, detail="Dodo Payments service not available")
+        
+        logger.info(f"Creating checkout session...")
+        session = dodo_service.create_checkout_session(
+            user_id=current_user.id,
+            email=current_user.email or "",
+            plan_type=request.plan_type,
+            billing_interval=billing_interval,
+        )
+        
+        if not session:
+            logger.error("Dodo service returned None for checkout session")
+            raise HTTPException(status_code=500, detail="Failed to create checkout session")
+        
+        checkout_url = session.get("url") or session.get("checkout_url") or session.get("redirect_url")
+        if not checkout_url:
+            logger.error(f"Checkout session created but no URL found. Session: {session}")
+            raise HTTPException(status_code=500, detail="Checkout session created but no URL returned")
+        
+        logger.info(f"Checkout session created successfully: {checkout_url[:50]}...")
+        return {"checkout_url": checkout_url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating Dodo checkout session: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create checkout session: {str(e)}")
+
+@app.post("/api/webhooks/dodo")
+async def dodo_webhook(request: Request):
+    """Handle Dodo Payments webhook events"""
+    try:
+        payload = await request.body()
+        # Dodo Payments might use different header names - adjust based on their docs
+        signature = (
+            request.headers.get("X-Dodo-Signature") or 
+            request.headers.get("Signature") or
+            request.headers.get("X-Signature") or
+            request.headers.get("X-Webhook-Signature")
+        )
+        
+        if not signature:
+            raise HTTPException(status_code=400, detail="Missing signature header")
+        
+        dodo_service = get_dodo_service(supabase)
+        result = dodo_service.handle_webhook(payload, signature)
+        
+        if not result:
+            raise HTTPException(status_code=400, detail="Invalid webhook signature")
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error handling Dodo webhook: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to handle webhook: {str(e)}")
 
 if __name__ == "__main__":

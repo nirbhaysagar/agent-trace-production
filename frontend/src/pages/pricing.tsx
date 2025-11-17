@@ -54,6 +54,13 @@ const PricingPage: NextPage = () => {
             ],
           },
           {
+            title: 'AI Credits',
+            items: [
+              '10 Free AI Credits (one-time)',
+              'Try AI-powered error analysis',
+            ],
+          },
+          {
             title: 'Guest Experience',
             items: [
               'No login required to get started',
@@ -116,9 +123,10 @@ const PricingPage: NextPage = () => {
           {
             title: 'AI Copilot',
             items: [
+              '1,000 AI Credits per month',
               'AI-powered error summaries and triage',
               'Root cause analysis with suggested fixes',
-              'Response caching keeps OpenAI spend predictable',
+              'Response caching saves credits on repeat errors',
             ],
           },
           {
@@ -135,6 +143,69 @@ const PricingPage: NextPage = () => {
         disabled: subscription?.plan_type === 'mini',
         requiresCheckout: true,
         billingInterval: 'week',
+      },
+      {
+        key: 'pro_test',
+        name: 'Pro Test Plan',
+        price: 0.01,
+        priceNote: 'TEST ONLY · $0.01 · Full Pro features',
+        description: '🧪 TESTING ONLY - Full Pro features for $0.01. This plan will be removed before launch.',
+        featureSections: [
+          {
+            title: '⚠️ TEST PLAN',
+            items: [
+              'This is a TEST plan for development only',
+              'Will be removed before production launch',
+              'Full Pro features included for testing',
+            ],
+          },
+          {
+            title: 'Privacy & Accounts',
+            items: [
+              'Secure Supabase auth (email today, OAuth-ready tomorrow)',
+              'User profiles with avatars and session management',
+              'Role-aware UI that separates personal and shared traces',
+            ],
+          },
+          {
+            title: 'Persistence & Control',
+            items: [
+              'Private trace vault with 90-day retention & pagination',
+              'Public/private visibility toggles per trace',
+              'Usage analytics and monthly limits dashboard',
+            ],
+          },
+          {
+            title: 'Workflow Automation',
+            items: [
+              'Direct API ingestion endpoint with bearer auth',
+              'Official TypeScript & Python SDKs (AgentTraceSDK)',
+              'CI-friendly uploads for automated test runs',
+            ],
+          },
+          {
+            title: 'AI Copilot',
+            items: [
+              '5,000 AI Credits (one-time grant)',
+              'AI-powered error summaries and triage',
+              'Root cause analysis with suggested fixes',
+              'Response caching saves credits on repeat errors',
+            ],
+          },
+          {
+            title: 'Pro Workflow',
+            items: [
+              'Global search across every private trace',
+              'Saved filter presets for repeatable investigations',
+              'Health indicator & reconnect controls for the API',
+            ],
+          },
+        ],
+        popular: false,
+        cta: 'Test Pro Features ($0.01)',
+        disabled: subscription?.plan_type === 'pro_test',
+        requiresCheckout: true,
+        billingInterval: 'test',
       },
       {
         key: 'pro',
@@ -170,9 +241,11 @@ const PricingPage: NextPage = () => {
           {
             title: 'AI Copilot',
             items: [
+              '5,000 AI Credits (one-time grant)',
               'AI-powered error summaries and triage',
               'Root cause analysis with suggested fixes',
-              'Response caching keeps OpenAI spend predictable',
+              'Response caching saves credits on repeat errors',
+              'Buy more credits or use your own API key when needed',
             ],
           },
           {
@@ -257,22 +330,30 @@ const PricingPage: NextPage = () => {
 
         {/* Plans */}
         <section id="plans" className="relative pb-16">
-          <div className="mx-auto grid w-full max-w-6xl gap-6 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-8 lg:px-8">
+          <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:gap-8 lg:px-8">
             {plans.map((plan) => {
               const isCurrentPlan = subscription?.plan_type === plan.key
               const isLoading = loading === plan.key
               const isPro = plan.key === 'pro'
+              const isTestPlan = plan.key === 'pro_test'
 
               return (
                 <div
                   key={plan.name}
                   className={`relative rounded-3xl border ${
-                    isPro
+                    isTestPlan
+                      ? 'border-yellow-500/50 bg-gradient-to-br from-yellow-600/20 via-orange-600/10 to-yellow-700/20 shadow-2xl'
+                      : isPro
                       ? 'border-purple-500/50 bg-gradient-to-br from-purple-600/20 via-blue-600/10 to-purple-700/20 shadow-2xl'
                       : 'border-white/10 bg-white/5 backdrop-blur shadow-xl'
                   } p-8`}
                 >
-                  {isPro && (
+                  {isTestPlan && (
+                    <div className="absolute -top-3 left-8 inline-flex items-center rounded-full bg-gradient-to-r from-yellow-500 to-orange-600 px-3 py-1 text-xs font-semibold text-black">
+                      🧪 TEST ONLY
+                    </div>
+                  )}
+                  {isPro && !isTestPlan && (
                     <div className="absolute -top-3 left-8 inline-flex items-center rounded-full bg-gradient-to-r from-purple-600 to-blue-600 px-3 py-1 text-xs font-semibold text-white">
                       Most loved by teams
                     </div>
@@ -286,7 +367,9 @@ const PricingPage: NextPage = () => {
                       <h2 className="mt-4 text-3xl font-semibold text-white">{plan.name}</h2>
                       <p className="mt-2 text-sm text-gray-300">{plan.description}</p>
                     </div>
-                    <span className="text-4xl font-bold text-white">${plan.price}</span>
+                    <span className="text-4xl font-bold text-white">
+                      {plan.price === 0.01 ? '$0.01' : `$${plan.price}`}
+                    </span>
                   </div>
 
                   <div className="mt-8 space-y-6 text-sm text-gray-200">

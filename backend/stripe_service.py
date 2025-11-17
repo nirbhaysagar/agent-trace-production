@@ -5,6 +5,7 @@ from datetime import datetime
 import stripe
 from supabase import Client
 from dotenv import load_dotenv
+from subscription_service import get_subscription_service
 
 load_dotenv()
 
@@ -48,6 +49,15 @@ PLAN_PRICES = {
         "amount": 4900,  # $49.00
         "currency": "usd",
         "interval": "month",
+    },
+    # TEST PLAN - Remove before production launch
+    "pro_test": {
+        "price_id": os.getenv("STRIPE_PRICE_PRO_TEST", ""),
+        "amount": 1,  # $0.01 (1 cent / 1 rupee equivalent)
+        "currency": "usd",
+        "mode": "payment",
+        "product_name": "AgentTrace Pro Test Plan",
+        "description": "TEST ONLY - Full Pro features for testing (will be removed)",
     },
 }
 
@@ -133,6 +143,8 @@ class StripeService:
                 price_key = f"{plan_type}_lifetime"
             elif billing_interval == "week":
                 price_key = f"{plan_type}_weekly"
+            elif billing_interval == "test":
+                price_key = f"{plan_type}_test"
             else:
                 price_key = f"{plan_type}_{billing_interval}ly"
             price_config = PLAN_PRICES.get(price_key)
@@ -166,10 +178,23 @@ class StripeService:
                     }
                 line_item["price_data"] = price_data
 
+            # Determine payment methods based on region and availability
+            # Stripe automatically shows available payment methods based on customer location
+            # Cards are supported globally, other methods vary by region
+            payment_methods = ["card"]  # Always include cards (credit/debit)
+            
+            # Add Link (Stripe's one-click checkout) if available
+            # Link is available in US, UK, and other supported countries
+            payment_methods.append("link")
+            
+            # Note: UPI is NOT currently supported by Stripe in India
+            # Stripe has limited operations in India and doesn't support UPI
+            # For Indian customers, only credit/debit cards are available
+            
             # Create checkout session
             session = stripe.checkout.Session.create(
                 customer=customer_id,
-                payment_method_types=["card"],
+                payment_method_types=payment_methods,
                 line_items=[line_item],
                 mode=mode,
                 success_url=f"{base_url}/settings/subscription?success=true",
@@ -253,6 +278,8 @@ class StripeService:
             self._handle_subscription_deleted(data)
         elif event_type == "checkout.session.completed":
             self._handle_checkout_completed(data)
+        elif event_type == "invoice.paid":
+            self._handle_invoice_paid(data)
         else:
             logger.info(f"Unhandled event type: {event_type}")
 
@@ -303,7 +330,10 @@ class StripeService:
                 "cancel_at_period_end": subscription.get("cancel_at_period_end", False),
             }, on_conflict="user_id").execute()
 
-            logger.info(f"Subscription created for user {user_id}")
+            # Provision AI credits for monthly subscriptions (1000 credits)
+            subscription_service = get_subscription_service(self.supabase)
+            subscription_service.set_ai_credits(user_id, 1000)
+            logger.info(f"Subscription created for user {user_id}, provisioned 1000 AI credits")
         except Exception as e:
             logger.error(f"Error handling subscription created: {e}")
 
@@ -385,9 +415,65 @@ class StripeService:
                 "cancel_at_period_end": False,
             }, on_conflict="user_id").execute()
 
-            logger.info(f"Checkout completed for user {user_id}, plan {plan_type}")
+            # Provision AI credits based on plan type
+            subscription_service = get_subscription_service(self.supabase)
+            if plan_type == "pro_test":
+                # Test plan gets same as lifetime (5000 credits)
+                subscription_service.set_ai_credits(user_id, 5000)
+                logger.info(f"🧪 TEST: Checkout completed for user {user_id}, TEST plan {plan_type}, provisioned 5000 AI credits")
+            elif plan_type == "pro":
+                # Lifetime plans get 5000 credits
+                subscription_service.set_ai_credits(user_id, 5000)
+                logger.info(f"Checkout completed for user {user_id}, plan {plan_type}, provisioned 5000 AI credits")
+            else:
+                logger.warning(f"Unknown plan type for checkout: {plan_type}")
         except Exception as e:
             logger.error(f"Error handling checkout completion: {e}")
+
+    def _handle_invoice_paid(self, invoice: Dict[str, Any]):
+        """Handle invoice paid event for recurring subscriptions (monthly credit reset)"""
+        if not self.supabase:
+            return
+
+        try:
+            customer_id = invoice.get("customer")
+            billing_reason = invoice.get("billing_reason")
+            
+            # Only reset credits for recurring subscription cycles (not first payment)
+            if billing_reason != "subscription_cycle":
+                logger.info(f"Invoice paid with billing_reason {billing_reason}, skipping credit reset")
+                return
+
+            # Get user_id from subscription
+            subscription_id = invoice.get("subscription")
+            if not subscription_id:
+                logger.warning("Invoice paid but no subscription ID found")
+                return
+
+            # Get subscription to find user_id
+            response = (
+                self.supabase.table("subscriptions")
+                .select("user_id")
+                .eq("stripe_subscription_id", subscription_id)
+                .limit(1)
+                .execute()
+            )
+
+            if not response.data or len(response.data) == 0:
+                logger.warning(f"Subscription {subscription_id} not found in database")
+                return
+
+            user_id = response.data[0].get("user_id")
+            if not user_id:
+                logger.warning(f"No user_id found for subscription {subscription_id}")
+                return
+
+            # Reset monthly credits (1000 for monthly subscriptions)
+            subscription_service = get_subscription_service(self.supabase)
+            subscription_service.reset_monthly_credits(user_id)
+            logger.info(f"Reset monthly AI credits for user {user_id} (subscription cycle)")
+        except Exception as e:
+            logger.error(f"Error handling invoice paid: {e}")
 
 
 # Global instance

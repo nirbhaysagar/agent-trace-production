@@ -21,6 +21,7 @@ create table if not exists public.usage_limits (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null unique,
   trace_count integer not null default 0,
+  ai_credits integer not null default 10, -- AI credits: 10 for free users, 1000/month for pro_monthly, 5000 one-time for pro_lifetime
   reset_date date not null default (date_trunc('month', now()) + interval '1 month')::date,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
@@ -70,6 +71,9 @@ begin
   where reset_date <= now()::date;
 end;
 $$ language plpgsql;
+
+-- Add ai_credits column if it doesn't exist (for existing installations)
+alter table public.usage_limits add column if not exists ai_credits integer not null default 10;
 
 -- Disable row level security (backend handles access control)
 alter table public.subscriptions disable row level security;

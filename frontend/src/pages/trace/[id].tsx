@@ -10,13 +10,16 @@ import TraceDetails from '../../components/TraceDetails'
 import TraceFilters from '../../components/TraceFilters'
 import { AgentTrace, AgentStep, TraceFilters as TraceFiltersType } from '../../types/trace'
 import { useAuth } from '../../context/AuthContext'
+import { useSubscription } from '../../context/SubscriptionContext'
 import api from '../../utils/api'
 import { getGuestTrace, cleanupExpiredTraces, setupGuestCleanup } from '../../utils/guestSession'
+import PaywallModal from '../../components/PaywallModal'
 
 const TracePage: NextPage = () => {
   const router = useRouter()
   const { id } = router.query
   const { user, loading: authLoading } = useAuth()
+  const { canUsePrivateTraces } = useSubscription()
   
   const [trace, setTrace] = useState<AgentTrace | null>(null)
   const [loading, setLoading] = useState(true)
@@ -28,6 +31,7 @@ const TracePage: NextPage = () => {
     showErrors: false,
     searchQuery: ''
   })
+  const [showPaywall, setShowPaywall] = useState(false)
 
   useEffect(() => {
     cleanupExpiredTraces()
@@ -151,13 +155,27 @@ const TracePage: NextPage = () => {
   const handleTogglePublic = async () => {
     if (!trace) return
     const newPublicState = !trace.is_public
+    const isMakingPrivate = !newPublicState
+    
+    // Check if user can make trace private (Pro feature)
+    if (isMakingPrivate && !canUsePrivateTraces()) {
+      toast.error('Private traces are a Pro feature. Upgrade to Pro to make traces private.')
+      setShowPaywall(true)
+      return
+    }
+    
     try {
       await api.put(`/api/traces/${trace.id}/visibility`, { is_public: newPublicState })
       setTrace({ ...trace, is_public: newPublicState })
       toast.success(newPublicState ? 'Trace is now public' : 'Trace is now private')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update trace visibility:', error)
-      toast.error('Failed to update trace visibility')
+      if (error.response?.status === 403 && error.response?.data?.detail?.includes('Private traces')) {
+        toast.error('Private traces are a Pro feature. Upgrade to Pro to make traces private.')
+        setShowPaywall(true)
+      } else {
+        toast.error('Failed to update trace visibility')
+      }
     }
   }
 
@@ -228,8 +246,9 @@ const TracePage: NextPage = () => {
       {user && (
         <button
           onClick={handleTogglePublic}
-          className={`btn-secondary ${trace.is_public ? 'bg-green-50 text-green-700 hover:bg-green-100' : ''}`}
-          title={trace.is_public ? 'Make private' : 'Make public'}
+          disabled={!trace.is_public && !canUsePrivateTraces()}
+          className={`btn-secondary ${trace.is_public ? 'bg-green-50 text-green-700 hover:bg-green-100' : ''} ${!trace.is_public && !canUsePrivateTraces() ? 'opacity-50 cursor-not-allowed' : ''}`}
+          title={trace.is_public ? 'Make private (Pro feature)' : 'Make public'}
         >
           {trace.is_public ? <Globe className="mr-2 h-4 w-4" /> : <Lock className="mr-2 h-4 w-4" />}
           {trace.is_public ? 'Public' : 'Private'}
@@ -399,6 +418,12 @@ const TracePage: NextPage = () => {
           </div>
         </div>
       </Layout>
+      <PaywallModal
+        isOpen={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        feature="Private Trace Storage"
+        description="Store traces privately with 90-day retention. Only accessible to you."
+      />
     </>
   )
 }

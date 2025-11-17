@@ -141,7 +141,8 @@ export const createCheckoutSession = async (
     payload.billing_interval = billingInterval
   }
 
-  const response = await api.post<{ checkout_url: string }>('/api/subscription/checkout', payload)
+  // Use Dodo Payments endpoint (change to '/api/subscription/checkout' for Stripe)
+  const response = await api.post<{ checkout_url: string }>('/api/subscription/checkout-dodo', payload)
   return response.data
 }
 
